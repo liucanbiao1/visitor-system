@@ -1,0 +1,29 @@
+# === Maven / Java ===
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# === Node / Vue ===
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Claude Code IDE ===
+.claude/
+
+# === Logs ===
+logs/
+*.log

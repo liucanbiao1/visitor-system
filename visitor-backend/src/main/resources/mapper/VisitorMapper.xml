@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visitor.mapper.VisitorMapper">
+
+    <resultMap id="BaseResultMap" type="com.visitor.entity.Visitor">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="phone" property="phone"/>
+        <result column="id_card" property="idCard"/>
+        <result column="gender" property="gender"/>
+        <result column="photo_url" property="photoUrl"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT * FROM visitor ORDER BY create_time DESC
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM visitor WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.visitor.entity.Visitor" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO visitor (name, phone, id_card, gender, photo_url, status, create_time)
+        VALUES (#{name}, #{phone}, #{idCard}, #{gender}, #{photoUrl}, #{status}, NOW())
+    </insert>
+
+    <update id="update" parameterType="com.visitor.entity.Visitor">
+        UPDATE visitor
+        SET name = #{name}, phone = #{phone}, id_card = #{idCard},
+            gender = #{gender}, photo_url = #{photoUrl}, status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM visitor WHERE id = #{id}
+    </delete>
+
+    <select id="findByPhone" resultMap="BaseResultMap">
+        SELECT * FROM visitor WHERE phone = #{phone}
+    </select>
+
+    <select id="findByIdCardAndStatus" resultMap="BaseResultMap">
+        SELECT * FROM visitor WHERE id_card = #{idCard} AND status = #{status}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE visitor SET status = #{status}, update_time = NOW() WHERE id = #{id}
+    </update>
+
+    <select id="findPage" resultMap="BaseResultMap">
+        SELECT * FROM visitor
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%') OR phone LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY create_time DESC
+    </select>
+</mapper>

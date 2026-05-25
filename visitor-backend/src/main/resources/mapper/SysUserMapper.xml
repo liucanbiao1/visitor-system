@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visitor.mapper.SysUserMapper">
+
+    <resultMap id="UserWithRoleMap" type="com.visitor.entity.SysUser">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password" property="password"/>
+        <result column="phone" property="phone"/>
+        <result column="real_name" property="realName"/>
+        <result column="role_id" property="roleId"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="role_name" property="roleName"/>
+        <result column="role_code" property="roleCode"/>
+    </resultMap>
+
+    <select id="findByUsername" resultMap="UserWithRoleMap">
+        SELECT u.*, r.role_name, r.role_code
+        FROM sys_user u
+        LEFT JOIN sys_role r ON u.role_id = r.id
+        WHERE u.username = #{username}
+    </select>
+
+    <select id="findById" resultMap="UserWithRoleMap">
+        SELECT u.*, r.role_name, r.role_code
+        FROM sys_user u
+        LEFT JOIN sys_role r ON u.role_id = r.id
+        WHERE u.id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="UserWithRoleMap">
+        SELECT u.*, r.role_name, r.role_code
+        FROM sys_user u
+        LEFT JOIN sys_role r ON u.role_id = r.id
+        ORDER BY u.create_time DESC
+    </select>
+</mapper>

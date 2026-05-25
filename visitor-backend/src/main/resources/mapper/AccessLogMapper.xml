@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visitor.mapper.AccessLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.visitor.entity.AccessLog">
+        <id column="id" property="id"/>
+        <result column="visitor_id" property="visitorId"/>
+        <result column="appointment_id" property="appointmentId"/>
+        <result column="entry_time" property="entryTime"/>
+        <result column="exit_time" property="exitTime"/>
+        <result column="access_status" property="accessStatus"/>
+        <result column="device_name" property="deviceName"/>
+        <result column="fail_reason" property="failReason"/>
+        <result column="create_time" property="createTime"/>
+        <result column="visitor_name" property="visitorName"/>
+        <result column="visitor_phone" property="visitorPhone"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.visitor.entity.AccessLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO access_log (visitor_id, appointment_id, entry_time, exit_time,
+            access_status, device_name, fail_reason, create_time)
+        VALUES (#{visitorId}, #{appointmentId}, #{entryTime}, #{exitTime},
+            #{accessStatus}, #{deviceName}, #{failReason}, NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT a.*, v.name AS visitor_name, v.phone AS visitor_phone
+        FROM access_log a
+        LEFT JOIN visitor v ON a.visitor_id = v.id
+        WHERE a.id = #{id}
+    </select>
+
+    <select id="findPage" resultMap="BaseResultMap">
+        SELECT a.*, v.name AS visitor_name, v.phone AS visitor_phone
+        FROM access_log a
+        LEFT JOIN visitor v ON a.visitor_id = v.id
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (v.name LIKE CONCAT('%', #{keyword}, '%')
+                     OR v.phone LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="accessStatus != null">
+                AND a.access_status = #{accessStatus}
+            </if>
+        </where>
+        ORDER BY a.create_time DESC
+    </select>
+
+    <update id="updateExitTime">
+        UPDATE access_log SET exit_time = #{exitTime} WHERE id = #{id}
+    </update>
+
+    <select id="findTodayEntryByVisitorId" resultMap="BaseResultMap">
+        SELECT a.*, v.name AS visitor_name, v.phone AS visitor_phone
+        FROM access_log a
+        LEFT JOIN visitor v ON a.visitor_id = v.id
+        WHERE a.visitor_id = #{visitorId}
+          AND DATE(a.entry_time) = CURDATE()
+        LIMIT 1
+    </select>
+
+    <select id="findOnCampus" resultMap="BaseResultMap">
+        SELECT a.*, v.name AS visitor_name, v.phone AS visitor_phone
+        FROM access_log a
+        LEFT JOIN visitor v ON a.visitor_id = v.id
+        WHERE a.entry_time IS NOT NULL
+          AND a.exit_time IS NULL
+        ORDER BY a.entry_time ASC
+    </select>
+
+    <select id="findOverstayLogs" resultMap="BaseResultMap">
+        SELECT a.*, v.name AS visitor_name, v.phone AS visitor_phone
+        FROM access_log a
+        LEFT JOIN visitor v ON a.visitor_id = v.id
+        WHERE a.entry_time IS NOT NULL
+          AND a.exit_time IS NULL
+          AND a.entry_time &lt; DATE_SUB(NOW(), INTERVAL #{thresholdHour} HOUR)
+        ORDER BY a.entry_time ASC
+    </select>
+
+    <select id="countTodayVisitors" resultType="int">
+        SELECT COUNT(DISTINCT visitor_id) FROM access_log
+        WHERE DATE(entry_time) = CURDATE() AND access_status = 1
+    </select>
+
+    <select id="countOnCampusVisitors" resultType="int">
+        SELECT COUNT(*) FROM access_log
+        WHERE entry_time IS NOT NULL AND exit_time IS NULL AND access_status = 1
+    </select>
+
+    <select id="countMonthlyVisitors" resultType="int">
+        SELECT COUNT(DISTINCT visitor_id) FROM access_log
+        WHERE YEAR(entry_time) = YEAR(NOW()) AND MONTH(entry_time) = MONTH(NOW()) AND access_status = 1
+    </select>
+
+</mapper>
