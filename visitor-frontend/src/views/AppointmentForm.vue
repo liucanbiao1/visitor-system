@@ -88,7 +88,7 @@ const rules = computed(() => ({
   name: [{ required: true, message: t('appointment.nameRequired'), trigger: 'blur' }],
   phone: [
     { required: true, message: t('appointment.phoneRequired'), trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: t('appointment.phoneInvalid'), trigger: 'blur' }
+    { pattern: /^\+?[\d(][\d\s\-()]{4,19}$/, message: t('appointment.phoneInvalid'), trigger: 'blur' }
   ],
   hostName: [{ required: true, message: t('appointment.hostNameRequired'), trigger: 'blur' }],
   appointmentTime: [{ required: true, message: t('appointment.timeRequired'), trigger: 'change' }],

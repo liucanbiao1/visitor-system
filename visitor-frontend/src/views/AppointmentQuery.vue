@@ -33,7 +33,9 @@
             {{ formatTime(row.appointmentTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="visitReason" :label="$t('query.visitReason')" min-width="150" show-overflow-tooltip />
+        <el-table-column :label="$t('query.visitReason')" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ translateReason(row.visitReason) }}</template>
+        </el-table-column>
         <el-table-column prop="hostName" :label="$t('query.hostName')" min-width="100" />
         <el-table-column prop="hostDept" :label="$t('query.hostDept')" min-width="120" show-overflow-tooltip />
         <el-table-column prop="status" :label="$t('query.status')" min-width="100">
@@ -62,6 +64,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { queryAppointments } from '../api/appointment'
+import { translateReason } from '../utils/reason'
 
 const { t, locale } = useI18n()
 const phone = ref('')

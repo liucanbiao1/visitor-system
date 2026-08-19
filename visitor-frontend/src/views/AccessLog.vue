@@ -55,7 +55,9 @@
                   </el-table-column>
                   <el-table-column prop="hostName" :label="$t('access.hostName')" min-width="100" />
                   <el-table-column prop="hostDept" :label="$t('access.hostDept')" min-width="120" />
-                  <el-table-column prop="visitReason" :label="$t('access.visitReason')" min-width="120" show-overflow-tooltip />
+                  <el-table-column :label="$t('access.visitReason')" min-width="120" show-overflow-tooltip>
+                    <template #default="{ row }">{{ translateReason(row.visitReason) }}</template>
+                  </el-table-column>
                   <el-table-column :label="$t('access.operation')" width="120">
                     <template #default="{ row }">
                       <el-button type="primary" size="small" @click="handleEntry(searchedVisitor.id, row.id)">
@@ -170,6 +172,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { recordEntry, recordExit, getAccessLogPage, getOnCampusVisitors, getOverstayAlerts } from '../api/access-log'
 import request from '../api/request'
+import { translateReason } from '../utils/reason'
 
 const { t } = useI18n()
 

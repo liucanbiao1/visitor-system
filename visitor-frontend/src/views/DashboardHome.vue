@@ -55,7 +55,7 @@
           <template #header>
             <span>{{ $t('dashboard.reasonDistribution') }}</span>
           </template>
-          <div ref="pieChartRef" class="chart-box"></div>
+          <div ref="pieChartRef" class="chart-box pie-chart-box"></div>
         </el-card>
       </el-col>
     </el-row>
@@ -63,12 +63,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import { getOverview, getTrafficStats, getTimeDistribution, getReasonDistribution } from '../api/statistics'
+import { translateReason } from '../utils/reason'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // --- overview ---
 const overviewLoading = ref(false)
@@ -86,14 +87,15 @@ const fetchOverview = async () => {
 const trafficPeriod = ref('day')
 const trafficLoading = ref(false)
 const barChartRef = ref(null)
+const trafficData = ref([])
 let barChart = null
 
 const fetchTrafficStats = async () => {
   trafficLoading.value = true
   try {
     const res = await getTrafficStats(trafficPeriod.value)
-    const data = res.data || []
-    renderBarChart(data)
+    trafficData.value = res.data || []
+    renderBarChart(trafficData.value)
   } finally { trafficLoading.value = false }
 }
 
@@ -111,14 +113,15 @@ const renderBarChart = (data) => {
 // --- line chart (time distribution) ---
 const timeDistLoading = ref(false)
 const lineChartRef = ref(null)
+const timeDistData = ref([])
 let lineChart = null
 
 const fetchTimeDistribution = async () => {
   timeDistLoading.value = true
   try {
     const res = await getTimeDistribution()
-    const data = res.data || []
-    renderLineChart(data)
+    timeDistData.value = res.data || []
+    renderLineChart(timeDistData.value)
   } finally { timeDistLoading.value = false }
 }
 
@@ -144,30 +147,75 @@ const renderLineChart = (data) => {
 // --- pie chart (reason distribution) ---
 const reasonDistLoading = ref(false)
 const pieChartRef = ref(null)
+const reasonDistData = ref([])
 let pieChart = null
 
 const fetchReasonDistribution = async () => {
   reasonDistLoading.value = true
   try {
     const res = await getReasonDistribution()
-    const data = res.data || []
-    renderPieChart(data)
+    reasonDistData.value = res.data || []
+    renderPieChart(reasonDistData.value)
   } finally { reasonDistLoading.value = false }
 }
 
 const renderPieChart = (data) => {
   if (!pieChart) return
+
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { orient: 'vertical', right: '5%', top: 'center' },
+    legend: {
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      icon: 'circle',
+      itemWidth: 10,
+      itemHeight: 10,
+      textStyle: { fontSize: 11, overflow: 'break' },
+      formatter: (name) => name.length > 18 ? name.slice(0, 16) + '...' : name,
+      type: 'scroll',
+      pageIconColor: '#409eff'
+    },
     series: [{
+      name: t('dashboard.reasonDistribution'),
       type: 'pie',
-      radius: ['40%', '70%'],
-      center: ['35%', '50%'],
-      avoidLabelOverlap: false,
-      label: { show: false },
-      emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' } },
-      data: data.map(d => ({ name: d.name, value: d.value }))
+      radius: ['45%', '68%'],
+      center: ['50%', '42%'],
+      avoidLabelOverlap: true,
+      label: {
+        show: true,
+        position: 'outside',
+        formatter: '{b} : {d}%',
+        lineHeight: 16,
+        fontSize: 11,
+        color: '#333'
+      },
+      emphasis: {
+        scale: true,
+        label: { show: true, fontWeight: 'bold' }
+      },
+      itemStyle: {
+        borderRadius: 6,
+        borderColor: '#fff',
+        borderWidth: 2
+      },
+      data: data.map(d => ({ name: translateReason(d.name), value: d.value }))
+    }],
+    graphic: [{
+      type: 'text',
+      left: 'center',
+      top: '40%',
+      style: {
+        text: `${t('dashboard.total')}\n${total}`,
+        fill: '#409eff',
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        lineHeight: 24
+      },
+      z: 100
     }]
   })
 }
@@ -196,10 +244,18 @@ const loadAllData = () => {
   fetchReasonDistribution()
 }
 
+// re-render charts with cached data when language changes
+watch(locale, () => {
+  renderBarChart(trafficData.value)
+  renderLineChart(timeDistData.value)
+  renderPieChart(reasonDistData.value)
+})
+
 onBeforeUnmount(() => {
   barChart?.dispose()
   lineChart?.dispose()
   pieChart?.dispose()
+  window.removeEventListener('resize', () => {})
 })
 
 onMounted(async () => {
@@ -213,4 +269,10 @@ onMounted(async () => {
 .dashboard-home h2 { margin: 0; color: #303133; }
 .chart-header { display: flex; align-items: center; justify-content: space-between; }
 .chart-box { width: 100%; height: 340px; }
+.pie-chart-box { height: 400px; }
+
+@media (max-width: 768px) {
+  .pie-chart-box { height: 360px; }
+  .chart-box { height: 280px; }
+}
 </style>

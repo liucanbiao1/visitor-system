@@ -35,7 +35,9 @@
             {{ formatTime(row.appointmentTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="visitReason" :label="$t('review.visitReason')" min-width="150" show-overflow-tooltip />
+        <el-table-column :label="$t('review.visitReason')" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ translateReason(row.visitReason) }}</template>
+        </el-table-column>
         <el-table-column prop="hostName" :label="$t('review.hostName')" min-width="100" />
         <el-table-column prop="hostDept" :label="$t('review.hostDept')" min-width="120" show-overflow-tooltip />
         <el-table-column prop="status" :label="$t('review.status')" min-width="100">
@@ -88,6 +90,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { getAppointmentList, reviewAppointment } from '../api/appointment'
+import { translateReason } from '../utils/reason'
 
 const { t } = useI18n()
 
