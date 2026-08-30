@@ -34,7 +34,10 @@
           </template>
         </el-table-column>
         <el-table-column :label="$t('query.visitReason')" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ translateReason(row.visitReason) }}</template>
+          <template #default="{ row }">
+            {{ translateReason(row.visitReason) }}
+            <span v-if="row.reasonDetail" class="reason-detail">{{ row.reasonDetail }}</span>
+          </template>
         </el-table-column>
         <el-table-column prop="hostName" :label="$t('query.hostName')" min-width="100" />
         <el-table-column prop="hostDept" :label="$t('query.hostDept')" min-width="120" show-overflow-tooltip />
@@ -43,7 +46,9 @@
             <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="rejectReason" :label="$t('query.rejectReason')" min-width="150" show-overflow-tooltip />
+        <el-table-column :label="$t('query.rejectReason')" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ translateRejectReason(row.rejectReason) }}</template>
+        </el-table-column>
         <el-table-column prop="createTime" :label="$t('query.createTime')" min-width="160">
           <template #default="{ row }">
             {{ formatTime(row.createTime) }}
@@ -64,7 +69,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { queryAppointments } from '../api/appointment'
-import { translateReason } from '../utils/reason'
+import { translateReason, translateRejectReason } from '../utils/reason'
 
 const { t, locale } = useI18n()
 const phone = ref('')
@@ -145,6 +150,11 @@ const handleQuery = async () => {
   position: absolute;
   top: 16px;
   right: 20px;
+}
+.reason-detail {
+  margin-left: 4px;
+  color: #909399;
+  font-size: 12px;
 }
 .lang-btn {
   display: flex;

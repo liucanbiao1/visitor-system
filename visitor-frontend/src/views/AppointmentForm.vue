@@ -26,6 +26,12 @@
         <el-form-item :label="$t('appointment.idCard')" prop="idCard">
           <el-input v-model="form.idCard" :placeholder="$t('appointment.idCardPlaceholder')" />
         </el-form-item>
+        <el-form-item :label="$t('appointment.gender')" prop="gender">
+          <el-radio-group v-model="form.gender">
+            <el-radio :value="1">{{ $t('appointment.male') }}</el-radio>
+            <el-radio :value="2">{{ $t('appointment.female') }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item :label="$t('appointment.hostName')" prop="hostName">
           <el-input v-model="form.hostName" :placeholder="$t('appointment.hostNamePlaceholder')" />
         </el-form-item>
@@ -44,7 +50,13 @@
           />
         </el-form-item>
         <el-form-item :label="$t('appointment.visitReason')" prop="visitReason">
-          <el-input v-model="form.visitReason" type="textarea" :rows="3" :placeholder="$t('appointment.reasonPlaceholder')" />
+          <el-select v-model="form.visitReason" :placeholder="$t('appointment.reasonPlaceholder')" style="width: 100%"
+            @change="handleReasonChange">
+            <el-option v-for="option in reasonOptions" :key="option.value" :label="$t(option.key)" :value="option.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="form.visitReason === 'Other'" :label="$t('reason.otherDetail')" prop="reasonDetail">
+          <el-input v-model="form.reasonDetail" :placeholder="$t('reason.otherPlaceholder')" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" style="width: 100%" :loading="loading" @click="handleSubmit">
@@ -64,10 +76,12 @@ import { reactive, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { submitAppointment } from '../api/appointment'
+import { REASON_OPTIONS } from '../utils/reason'
 
 const { t, locale } = useI18n()
 const formRef = ref(null)
 const loading = ref(false)
+const reasonOptions = REASON_OPTIONS
 
 const changeLang = (lang) => {
   localStorage.setItem('lang', lang)
@@ -78,11 +92,20 @@ const form = reactive({
   name: '',
   phone: '',
   idCard: '',
+  gender: 0,
   hostName: '',
   hostDept: '',
   appointmentTime: '',
-  visitReason: ''
+  visitReason: '',
+  reasonDetail: ''
 })
+
+const handleReasonChange = () => {
+  if (form.visitReason !== 'Other') {
+    form.reasonDetail = ''
+  }
+  formRef.value?.clearValidate('reasonDetail')
+}
 
 const rules = computed(() => ({
   name: [{ required: true, message: t('appointment.nameRequired'), trigger: 'blur' }],
@@ -92,7 +115,18 @@ const rules = computed(() => ({
   ],
   hostName: [{ required: true, message: t('appointment.hostNameRequired'), trigger: 'blur' }],
   appointmentTime: [{ required: true, message: t('appointment.timeRequired'), trigger: 'change' }],
-  visitReason: [{ required: true, message: t('appointment.reasonRequired'), trigger: 'blur' }]
+  visitReason: [{ required: true, message: t('appointment.reasonRequired'), trigger: 'blur' }],
+  reasonDetail: [{
+    required: true,
+    trigger: 'blur',
+    validator: (rule, value, callback) => {
+      if (form.visitReason === 'Other' && !value.trim()) {
+        callback(new Error(t('reason.otherRequired')))
+      } else {
+        callback()
+      }
+    }
+  }]
 }))
 
 const disabledDate = (time) => {

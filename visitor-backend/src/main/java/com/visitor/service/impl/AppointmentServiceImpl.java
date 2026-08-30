@@ -8,6 +8,7 @@ import com.visitor.entity.Appointment;
 import com.visitor.entity.Visitor;
 import com.visitor.mapper.AppointmentMapper;
 import com.visitor.mapper.VisitorMapper;
+import com.visitor.service.AiReviewService;
 import com.visitor.service.AppointmentService;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -24,12 +25,14 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final AppointmentMapper appointmentMapper;
     private final VisitorMapper visitorMapper;
     private final MessageSource messageSource;
+    private final AiReviewService aiReviewService;
 
     public AppointmentServiceImpl(AppointmentMapper appointmentMapper, VisitorMapper visitorMapper,
-                                  MessageSource messageSource) {
+                                  MessageSource messageSource, AiReviewService aiReviewService) {
         this.appointmentMapper = appointmentMapper;
         this.visitorMapper = visitorMapper;
         this.messageSource = messageSource;
+        this.aiReviewService = aiReviewService;
     }
 
     private String msg(String key, Object... args) {
@@ -61,6 +64,10 @@ public class AppointmentServiceImpl implements AppointmentService {
                 visitor.setIdCard(dto.getIdCard());
                 changed = true;
             }
+            if (dto.getGender() != null && !dto.getGender().equals(visitor.getGender())) {
+                visitor.setGender(dto.getGender());
+                changed = true;
+            }
             if (changed) {
                 visitorMapper.update(visitor);
             }
@@ -69,7 +76,7 @@ public class AppointmentServiceImpl implements AppointmentService {
             visitor.setName(dto.getName());
             visitor.setPhone(dto.getPhone());
             visitor.setIdCard(dto.getIdCard() != null ? dto.getIdCard() : "");
-            visitor.setGender(0);
+            visitor.setGender(dto.getGender() != null ? dto.getGender() : 0);
             visitor.setStatus(1);
             visitorMapper.insert(visitor);
         }
@@ -78,10 +85,13 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setVisitorId(visitor.getId());
         appointment.setAppointmentTime(dto.getAppointmentTime());
         appointment.setVisitReason(dto.getVisitReason());
+        appointment.setReasonDetail(dto.getReasonDetail());
         appointment.setHostName(dto.getHostName());
         appointment.setHostDept(dto.getHostDept());
         appointment.setStatus(0);
         appointmentMapper.insert(appointment);
+
+        aiReviewService.tryAutoReview(appointment.getId());
     }
 
     @Override

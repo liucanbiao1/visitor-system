@@ -14,6 +14,8 @@ USE visitor_system;
 -- 1. 角色表
 -- ===================================================
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS ai_review_log;
+DROP TABLE IF EXISTS sys_config;
 DROP TABLE IF EXISTS sys_role_permission;
 DROP TABLE IF EXISTS sys_user_role;
 DROP TABLE IF EXISTS sys_permission;
@@ -112,6 +114,7 @@ CREATE TABLE appointment (
     visitor_id        BIGINT        NOT NULL                 COMMENT '访客ID',
     appointment_time  DATETIME      NOT NULL                 COMMENT '预约访问时间',
     visit_reason      VARCHAR(255)  NOT NULL                 COMMENT '来访原因',
+    reason_detail     VARCHAR(255)  DEFAULT NULL             COMMENT '来访原因详情(选择"其他"时自由填写)',
     host_name         VARCHAR(50)   NOT NULL                 COMMENT '访问对象',
     host_dept         VARCHAR(100)  DEFAULT NULL             COMMENT '被访部门',
     status            TINYINT       NOT NULL DEFAULT 0       COMMENT '0待审核 1已通过 2已拒绝 3已完成 4已取消',
@@ -153,6 +156,45 @@ CREATE TABLE access_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='门禁记录表';
 
 -- ===================================================
+-- 8. 系统配置表
+-- ===================================================
+CREATE TABLE sys_config (
+    id          BIGINT          NOT NULL AUTO_INCREMENT  COMMENT '配置ID',
+    config_key  VARCHAR(100)    NOT NULL                 COMMENT '配置键',
+    config_value VARCHAR(255)   NOT NULL DEFAULT ''      COMMENT '配置值',
+    description VARCHAR(255)    DEFAULT NULL             COMMENT '配置说明',
+    updated_by  BIGINT          DEFAULT NULL             COMMENT '最后修改人ID',
+    update_time DATETIME        DEFAULT NULL ON UPDATE NOW() COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_config_key (config_key),
+    CONSTRAINT fk_config_user FOREIGN KEY (updated_by) REFERENCES sys_user (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
+
+-- ===================================================
+-- 9. AI 审批日志表
+-- ===================================================
+CREATE TABLE ai_review_log (
+    id             BIGINT        NOT NULL AUTO_INCREMENT  COMMENT '日志ID',
+    appointment_id BIGINT        NOT NULL                 COMMENT '预约ID',
+    visitor_name   VARCHAR(50)   DEFAULT NULL             COMMENT '访客姓名(冗余)',
+    visitor_phone  VARCHAR(20)   DEFAULT NULL             COMMENT '访客手机号(冗余)',
+    decision       TINYINT       DEFAULT NULL             COMMENT 'AI决定 1通过 2拒绝 NULL=调用失败',
+    reason         VARCHAR(500)  DEFAULT NULL             COMMENT 'AI理由/拒绝原因',
+    confidence     DECIMAL(5,2)  DEFAULT NULL             COMMENT '置信度 0-100',
+    risk_level     VARCHAR(20)   DEFAULT NULL             COMMENT '风险等级 low/medium/high',
+    latency_ms     INT           DEFAULT NULL             COMMENT 'AI调用耗时(毫秒)',
+    model_name     VARCHAR(50)   DEFAULT NULL             COMMENT '模型名',
+    success        TINYINT       NOT NULL DEFAULT 1       COMMENT '1调用成功 0调用失败',
+    error_message  VARCHAR(500)  DEFAULT NULL             COMMENT '失败原因(超时/余额不足/解析失败等)',
+    raw_response   TEXT          DEFAULT NULL             COMMENT '模型原始响应(截断至2000字符)',
+    create_time    DATETIME      NOT NULL DEFAULT NOW()  COMMENT '创建时间',
+    PRIMARY KEY (id),
+    KEY idx_appointment_id (appointment_id),
+    KEY idx_create_time (create_time),
+    CONSTRAINT fk_ai_log_appt FOREIGN KEY (appointment_id) REFERENCES appointment (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI审批日志表';
+
+-- ===================================================
 -- 初始数据: 角色
 -- ===================================================
 INSERT INTO sys_role (id, role_name, role_code, description) VALUES
@@ -182,7 +224,9 @@ INSERT INTO sys_permission (id, perm_name, perm_code, perm_path, parent_id, perm
 (13, 'Visitor Edit',          'visitor:edit',  '/api/visitor/edit',  4, 'button', 3, NULL),
 (14, 'Appointment Review',    'appointment:review', '/api/appointment/review', 5, 'button', 1, NULL),
 (15, 'Appointment Query',     'appointment:list',   '/api/appointment/list',   5, 'button', 2, NULL),
-(16, 'Access Log Query',      'access-log:list',    '/api/access-log/list',    6, 'button', 1, NULL);
+(16, 'Access Log Query',      'access-log:list',    '/api/access-log/list',    6, 'button', 1, NULL),
+(17, 'AI Settings',           'ai:settings',        '/api/ai/settings',        5, 'button', 3, NULL),
+(18, 'AI Logs',               'ai:logs',            '/api/ai/logs',            5, 'button', 4, NULL);
 
 -- ===================================================
 -- 初始数据: 管理员用户 (密码: admin123, BCrypt加密)
@@ -191,12 +235,25 @@ INSERT INTO sys_user (id, username, password, phone, real_name, role_id, status)
 (1, 'admin', '$2a$10$awNsz6ElecxeHt9ASDN1TeuCJNJHSq.GK3pW5FAfsZ7KXfEYgcacm', '13800000000', 'System Admin', 1, 1);
 
 -- ===================================================
+-- 初始数据: AI 审核人系统账号 (status=0 禁用, 不可登录)
+-- ===================================================
+INSERT INTO sys_user (id, username, password, phone, real_name, role_id, status) VALUES
+(100, 'ai_reviewer', '$2a$10$awNsz6ElecxeHt9ASDN1TeuCJNJHSq.GK3pW5FAfsZ7KXfEYgcacm', NULL, 'AI Auto Reviewer', 1, 0);
+
+-- ===================================================
+-- 初始数据: 系统配置 (AI 审批开关默认关闭)
+-- ===================================================
+INSERT INTO sys_config (config_key, config_value, description) VALUES
+('ai.review.enabled', 'false', 'AI自动审批开关 true/false');
+
+-- ===================================================
 -- 初始数据: 角色-权限映射
 -- ===================================================
--- 管理员 (role_id=1): 拥有全部 16 条权限
+-- 管理员 (role_id=1): 拥有全部 18 条权限
 INSERT INTO sys_role_permission (role_id, permission_id) VALUES
 (1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8),
-(1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16);
+(1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16),
+(1,17), (1,18);
 
 -- 普通管理员 (role_id=2): 仅有首页、访客管理、预约管理的查看权限
 INSERT INTO sys_role_permission (role_id, permission_id) VALUES

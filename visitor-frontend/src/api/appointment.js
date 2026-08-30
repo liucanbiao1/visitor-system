@@ -1,7 +1,7 @@
 import request from './request'
 
 export function submitAppointment(data) {
-  return request({ url: '/appointment/submit', method: 'post', data })
+  return request({ url: '/appointment/submit', method: 'post', data, timeout: 60000 })
 }
 
 export function queryAppointments(phone) {

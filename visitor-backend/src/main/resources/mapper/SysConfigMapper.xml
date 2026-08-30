@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visitor.mapper.SysConfigMapper">
+
+    <select id="findByKey" resultType="com.visitor.entity.SysConfig">
+        SELECT id, config_key AS configKey, config_value AS configValue, description,
+               updated_by AS updatedBy, update_time AS updateTime
+        FROM sys_config
+        WHERE config_key = #{configKey}
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO sys_config (config_key, config_value, updated_by, update_time)
+        VALUES (#{configKey}, #{configValue}, #{updatedBy}, NOW())
+        ON DUPLICATE KEY UPDATE config_value = #{configValue}, updated_by = #{updatedBy}, update_time = NOW()
+    </insert>
+</mapper>

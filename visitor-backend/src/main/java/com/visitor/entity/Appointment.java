@@ -7,6 +7,7 @@ public class Appointment {
     private Long visitorId;
     private LocalDateTime appointmentTime;
     private String visitReason;
+    private String reasonDetail;
     private String hostName;
     private String hostDept;
     private Integer status;
@@ -29,6 +30,8 @@ public class Appointment {
     public void setAppointmentTime(LocalDateTime appointmentTime) { this.appointmentTime = appointmentTime; }
     public String getVisitReason() { return visitReason; }
     public void setVisitReason(String visitReason) { this.visitReason = visitReason; }
+    public String getReasonDetail() { return reasonDetail; }
+    public void setReasonDetail(String reasonDetail) { this.reasonDetail = reasonDetail; }
     public String getHostName() { return hostName; }
     public void setHostName(String hostName) { this.hostName = hostName; }
     public String getHostDept() { return hostDept; }

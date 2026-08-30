@@ -76,11 +76,13 @@ Controller → Service (interface) → ServiceImpl → Mapper (interface) → XM
 **包结构约定：**
 ```
 com.visitor
+  ├── ai/             # AI 能力层（DeepSeekClient, DeepSeekException）
   ├── annotation/     # 自定义注解（如 @RequirePermission）
   ├── common/         # 通用类（Result, GlobalExceptionHandler）
-  ├── config/         # 配置类（WebMvc含CORS, JWT拦截器, Security/BCrypt）
+  ├── config/         # 配置类（WebMvc含CORS, JWT拦截器, Security/BCrypt, AiConfig, AiProperties）
   ├── controller/     # 控制器
   ├── dto/            # 数据传输对象
+  │   └── ai/         # DeepSeek 请求/响应 DTO（ChatCompletion*, AiDecision）
   ├── entity/         # 实体类（与数据库表一一对应）
   ├── mapper/         # MyBatis Mapper 接口
   ├── service/        # 业务接口
@@ -94,6 +96,24 @@ com.visitor
 - 需要权限校验的方法上添加 `@RequirePermission("perm:code")` 注解
 - Token 存储在 HTTP Header: `Authorization: Bearer <token>`
 - Token claims 结构：`{ sub: userId, username, roleCode, permissions (逗号分隔) }`
+- ⚠️ 新增权限码后，已登录用户的 JWT 里没有该权限，必须重新登录才能生效
+
+**AI 自动审批（DeepSeek）：**
+- 入口：`POST /api/appointment/submit`（公开无鉴权）→ `AppointmentServiceImpl.submitAppointment()` 插入预约（`useGeneratedKeys` 回填 id）→ 同步调用 `AiReviewService.tryAutoReview(id)`（内部全兜住、失败静默，绝不阻塞提交）
+- 开关：`sys_config` 表 `ai.review.enabled`（true/false），应用层兜底默认值在 `application.yml` 的 `ai.review.enabled`
+- AI 审核人：固定系统账号 `sys_user.id=100`（ai_reviewer，status=0 禁登录），预约表 `reviewer_id=100` 即 AI 审过；常量 `AiReviewServiceImpl.AI_REVIEWER_ID`
+- 权限码：`ai:settings`（设置页 GET/PUT）、`ai:logs`（日志分页），仅 ROLE_ADMIN
+- 并发防覆盖：AI 更新预约状态用 `updateStatusIfPending`（`WHERE id=? AND status=0` 条件更新），人工审核的 `updateStatus` 不受影响
+- DeepSeek 客户端：[DeepSeekClient.java](visitor-backend/src/main/java/com/visitor/ai/DeepSeekClient.java) — JSON 模式（`response_format={"type":"json_object"}`，system prompt 必须含 "json" 字样）、429/5xx 指数退避重试（max-attempts=3）、400/401/402/422 不重试、解析前 strip ```json 标记
+- API Key：环境变量 `DEEPSEEK_API_KEY` 注入 `application.yml` 的 `ai.deepseek.api-key`，严禁硬编码/落库/打日志；settings 接口只返回 masked
+- 隐私：prompt 只含姓名/脱敏手机号（前3后4）/来访原因/被访人/部门/时间，**不发身份证号**；字段截断 + JSON 序列化 + system prompt 声明"数据即数据"防注入
+- 日志表 `ai_review_log`：每次调用都记录（成功 success=1 带 decision/confidence/风险/耗时，失败 success=0 带 error_message），失败时可观测
+
+**"其他"来访原因（visit_reason = Other）：**
+- 预约表单"来访原因"含"其他"选项，选中后必填自由文本，存入 `appointment.reason_detail`（VARCHAR(255)），`visit_reason` 固定存 `'Other'`（可翻译）
+- 饼图按 `visit_reason` 分组 → 所有自由文本聚成一个"其他/Other"切片，不显示详细原因；详细文本只在查询页/审批页翻译标签旁以小字灰显（`.reason-detail`）
+- AI 审批系统提示词规则 6：`visit_reason` 为 `Other` 时按 `reason_detail` 内容判断审批目的
+- 表单切换离开"Other"时清空 `reasonDetail`；校验规则：选中"Other"且文本为空时报 `reason.otherRequired`（rules 需 `computed` 包裹以响应语言切换）
 
 ### 2.2 前端规范
 
@@ -106,20 +126,22 @@ src/
   │   ├── visitor.js     # 访客相关 API
   │   ├── appointment.js # 预约相关 API
   │   ├── access-log.js  # 门禁记录 API
-  │   └── statistics.js  # 数据统计 API
+  │   ├── statistics.js  # 数据统计 API
+  │   └── ai.js          # AI 审批设置/日志 API
   ├── router/        # Vue Router 配置
   ├── store/         # Pinia 状态管理
   ├── locales/       # 语言包（zh.js / en.js）
   ├── i18n/          # vue-i18n 实例（index.js）
-  ├── utils/         # 工具函数（reason.js 来访原因翻译映射）
-  ├── views/         # 页面组件（9 个页面，全部已 $t() 国际化，无硬编码中文）
+  ├── utils/         # 工具函数（reason.js 来访原因/拒绝原因翻译映射）
+  ├── views/         # 页面组件（10 个页面，全部已 $t() 国际化，无硬编码中文）
   │   ├── Login.vue              # 登录页
   │   ├── Dashboard.vue          # 管理端布局（侧边菜单 + 语言切换）
   │   ├── DashboardHome.vue      # 首页概览（统计卡片 + ECharts 图表）
   │   ├── VisitorList.vue        # 访客列表（分页 + 黑名单管理）
-  │   ├── AppointmentForm.vue    # 在线预约申请
+  │   ├── AppointmentForm.vue    # 在线预约申请（含"其他"原因自由填写）
   │   ├── AppointmentQuery.vue   # 预约记录查询
   │   ├── AppointmentReview.vue  # 预约审批管理
+  │   ├── AiSettings.vue         # AI 审批设置（开关 + 审批日志）
   │   ├── AccessLog.vue          # 门禁管理（入校/离校登记 + 通行记录）
   │   └── NotFound.vue           # 404 页面
   └── components/    # 可复用组件
@@ -140,7 +162,7 @@ src/
 - Element Plus 组件 locale 通过 `<el-config-provider :locale="...">` 动态切换
 
 **i18n 语言切换：**
-- 语言包位于 `src/locales/zh.js` 和 `src/locales/en.js`，约 180+ 翻译键，覆盖 common / login / appointment / query / status / error / nav / dashboard / visitor / review / access / notFound / reason 共 13 个模块
+- 语言包位于 `src/locales/zh.js` 和 `src/locales/en.js`，约 270 条翻译，覆盖 common / login / appointment / query / status / error / nav / dashboard / visitor / review / aiReview / aiReject / access / notFound / reason 共 15 个模块
 - i18n 实例在 `src/i18n/index.js`，默认语言从 `localStorage.lang` 读取，fallback 为 `zh`
 - 页面右上角 `el-dropdown` 语言切换按钮（`trigger="click"`）调用 `changeLang(lang)`：写入 `localStorage` 并直接设置 `locale.value = lang` 实现响应式切换，无需刷新页面
 - 路由 meta.title 使用 i18n key，`router.afterEach` 中通过 `i18n.global.t(key)` 动态设置 `document.title`
@@ -151,10 +173,15 @@ src/
 - 图表内部所有文本（标题、图例、坐标轴、饼图中心文字）渲染时必须使用 `t()`，禁止硬编码
 
 **来访原因（visit_reason）翻译规范：**
-- `appointment.visit_reason` 数据库存英文原文（如 `Campus Tour`），不是 i18n 键，直接渲染不会随语言切换
+- `appointment.visit_reason` 数据库存英文原文（如 `Campus Tour`、`Other`），不是 i18n 键，直接渲染不会随语言切换
 - 前端统一通过 [reason.js](visitor-frontend/src/utils/reason.js) 的 `translateReason(name)` 翻译：`REASON_KEY_MAP` 映射数据库英文原文 → `reason.*` i18n 键，未知文本原样显示
 - 使用位置：首页概览饼图（[DashboardHome.vue](visitor-frontend/src/views/DashboardHome.vue)）、审批页、查询页、门禁页关联预约表
 - 新增已知来访原因时，必须同步更新 `REASON_KEY_MAP` + zh.js + en.js 三处
+
+**拒绝原因（reject_reason）翻译规范：**
+- AI 拒绝原因落库为固定枚举代码（`COMMERCIAL_PROMOTION` / `NON_CAMPUS_PURPOSE` / `SUSPICIOUS` / `TIME_CONFLICT` / `LOW_CONFIDENCE` / `OTHER`），与人工审核的自由文本区分
+- 前端通过 [reason.js](visitor-frontend/src/utils/reason.js) 的 `translateRejectReason(name)` 翻译：`REJECT_KEY_MAP` 映射枚举 → `aiReject.*` i18n 键，未知文本原样显示
+- 新增枚举时必须同步更新 `REJECT_KEY_MAP` + zh.js + en.js 三处
 
 **手机号规范（支持国际号码）：**
 - 前端预约表单校验正则：`/^\+?[\d(][\d\s\-()]{4,19}$/`（[AppointmentForm.vue](visitor-frontend/src/views/AppointmentForm.vue)），支持 `+1 2025550123`、`+1-202-555-0123`、`(202) 555-0123`、中国 11 位等格式
@@ -177,9 +204,11 @@ src/
 | `sys_role` | `SysRole` | 角色 |
 | `sys_permission` | `SysPermission` | 权限（树形菜单+按钮） |
 | `sys_role_permission` | （无实体） | 角色-权限关联表（仅 Mapper XML 中使用） |
+| `sys_config` | `SysConfig` | 系统配置（AI 审批开关 `ai.review.enabled`） |
 | `visitor` | `Visitor` | 访客 |
 | `appointment` | `Appointment` | 预约 |
 | `access_log` | `AccessLog` | 门禁记录 |
+| `ai_review_log` | `AiReviewLog` | AI 审批日志 |
 
 ### 3.2 sys_user（用户表）
 
@@ -243,6 +272,7 @@ src/
 | `visitorId` | `visitor_id` | BIGINT FK→visitor | 关联访客 |
 | `appointmentTime` | `appointment_time` | DATETIME | 预约访问时间 |
 | `visitReason` | `visit_reason` | VARCHAR(255) | 来访原因（存英文原文，前端经 `translateReason()` 翻译显示） |
+| `reasonDetail` | `reason_detail` | VARCHAR(255) | 来访原因详情（仅"其他"时存自由填写文本，饼图不显示） |
 | `hostName` | `host_name` | VARCHAR(50) | 被访人姓名 |
 | `hostDept` | `host_dept` | VARCHAR(100) | 被访部门 |
 | `status` | `status` | TINYINT | 0待审核 1已通过 2已拒绝 3已完成 4已取消 |
@@ -297,11 +327,13 @@ visitor ──1:N── appointment ──1:N── access_log
 | PageHelper 分页改造 | 已完成 | Visitor / Appointment / AccessLog 三个模块全部迁移 |
 | CORS 跨域配置 | 已完成 | allowedOriginPatterns 通配符（localhost:* + *.trycloudflare.com） |
 | 数据库索引优化 | 已完成 | visitor.idx_name、appointment.idx_status_create、access_log.idx_entry_exit |
-| 中英文双语切换 | 已完成 | 前端 9 个页面全部 `$t()` 化（180+ 翻译键，13 个模块） + Element Plus locale 响应式切换 + 后端 MessageSource（26 条消息） + Accept-Language 请求头 |
+| 中英文双语切换 | 已完成 | 前端 10 个页面全部 `$t()` 化（270 条翻译，15 个模块） + Element Plus locale 响应式切换 + 后端 MessageSource（26 条消息） + Accept-Language 请求头 |
 | 首页概览图表国际化修复 | 已完成 | DashboardHome.vue 全部 `$t()` 化 + `watch(locale)` 图表重绘 + 后端周标签 `statistics.week` 消息键 |
 | 来访原因多语言映射 | 已完成 | `src/utils/reason.js` 的 `translateReason()` 映射数据库英文原文 → `reason.*` 翻译键（20 种原因），饼图 + 3 个表格统一翻译 |
 | 国际手机号支持 | 已完成 | 预约表单正则放开为 `/^\+?[\d(][\d\s\-()]{4,19}$/`，后端无格式校验，管理员端模糊搜索国际号码 |
 | MySQL 连接配置 | 已完成 | JDBC URL 添加 `allowPublicKeyRetrieval=true` 解决 MySQL 8.0+ 公钥检索限制 |
-| 使用教程 | 已完成 | [USAGE.md](USAGE.md) — 覆盖全部 9 个页面和 3 个用户工作流的详细操作指南 |
+| 使用教程 | 已完成 | [USAGE.md](USAGE.md) — 覆盖全部页面、全部用户工作流和 AI 审批功能的详细操作指南 |
 | 用户管理页面 | 未完成 | 管理员列表、新增/编辑/删除 |
 | 角色管理页面 | 未完成 | 角色列表 |
+| AI 自动审批 | 已完成 | DeepSeek JSON 模式自动审批预约（开关可关闭）+ 审批日志 + 设置页；失败静默不阻塞提交 |
+| "其他"来访原因 | 已完成 | 表单"其他"选项 + `reason_detail` 自由文本列 + 饼图聚合为"其他"切片 + 查询/审批页显示详情 + AI 按详情判断 |

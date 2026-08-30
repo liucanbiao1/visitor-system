@@ -14,6 +14,7 @@ SpringBoot + Vue 3 全栈项目，实现访客预约、门禁通行、数据统�
 | 图表 | ECharts 6.x |
 | 状态管理 | Pinia |
 | 国际化 | vue-i18n v9（前端） + Spring MessageSource（后端） |
+| AI 审批 | DeepSeek 大模型（OpenAI 兼容接口，JSON 模式自动审批） |
 
 ## 环境要求
 
@@ -53,9 +54,14 @@ USE visitor_system;
 SOURCE d:/VS code/visitor system/visitor-backend/src/main/resources/db/schema.sql;
 ```
 
-> 如果已有数据库只需要增量索引优化，执行：
+> 如果已有数据库，按需执行增量迁移脚本（不要重复执行已执行过的）：
 > ```bash
+> # 数据库索引优化
 > SOURCE /path/to/visitor-backend/src/main/resources/db/add-indexes.sql;
+> # AI 自动审批功能（sys_config / ai_review_log 表 + ai_reviewer 账号 + 权限码）
+> SOURCE /path/to/visitor-backend/src/main/resources/db/migrate-ai.sql;
+> # 预约"其他"来访原因（appointment.reason_detail 列）
+> SOURCE /path/to/visitor-backend/src/main/resources/db/migrate-reason-detail.sql;
 > ```
 
 ### 2. 数据库连接配置
@@ -84,7 +90,20 @@ mvnw spring-boot:run
 
 后端默认运行在 **http://localhost:8080**
 
-### 4. 启动前端（Vue 3 + Vite）
+### 4. 配置 AI 审批（可选 — DeepSeek）
+
+AI 自动审批依赖 DeepSeek API Key，通过环境变量注入，**严禁写入代码或提交到 git**：
+
+```bash
+# Windows（永久生效，重新打开终端生效）
+setx DEEPSEEK_API_KEY "sk-xxxxxx"
+# macOS / Linux
+export DEEPSEEK_API_KEY="sk-xxxxxx"
+```
+
+> 后端启动时只读取一次环境变量，修改后需重启后端。未配置时 AI 审批开关无法生效（设置页会提示），预约仍由人工审批，不影响其他功能。
+
+### 5. 启动前端（Vue 3 + Vite）
 
 ```bash
 cd visitor-frontend
@@ -100,7 +119,7 @@ npm run dev
 
 > 如果 3000 端口被占用，Vite 会自动切换为 3001（或下一个可用端口）。后端 CORS 使用通配符 `localhost:*`，兼容任意端口。
 
-### 5. 访问系统
+### 6. 访问系统
 
 浏览器打开 **http://localhost:3000**，使用以下账号登录：
 
@@ -109,9 +128,9 @@ npm run dev
 | 系统管理员 | admin | admin123 | 全部功能 |
 | 普通管理员 | （暂未创建） | — | 访客/预约查看 |
 
-> 详细操作指南请参阅 **[USAGE.md](USAGE.md)**（覆盖全部 9 个页面、3 个用户工作流、FAQ）。
+> 详细操作指南请参阅 **[USAGE.md](USAGE.md)**（覆盖全部页面、3 个用户工作流、AI 审批功能、FAQ）。
 
-### 6. 公网访问（可选 — Cloudflare Tunnel）
+### 7. 公网访问（可选 — Cloudflare Tunnel）
 
 如需任何联网设备访问本地前端，可使用 Cloudflare Tunnel 内网穿透（无需域名和账号）：
 
@@ -136,28 +155,30 @@ cloudflared tunnel --url http://localhost:3000
 visitor system/
 ├── visitor-backend/               # SpringBoot 后端
 │   ├── src/main/java/com/visitor/
+│   │   ├── ai/                    # AI 能力层（DeepSeekClient）
 │   │   ├── annotation/            # 自定义注解（@RequirePermission）
 │   │   ├── common/                # 通用类（Result, GlobalExceptionHandler）
-│   │   ├── config/                # 配置（WebMvc含CORS, JWT 拦截器, BCrypt）
+│   │   ├── config/                # 配置（WebMvc含CORS, JWT 拦截器, BCrypt, AiConfig, AiProperties）
 │   │   ├── controller/            # 控制器
 │   │   ├── dto/                   # 数据传输对象
+│   │   │   └── ai/                # DeepSeek 请求/响应 DTO
 │   │   ├── entity/                # 实体类
 │   │   ├── mapper/                # MyBatis Mapper 接口
 │   │   ├── service/               # 业务接口
 │   │   │   └── impl/              # 业务实现
 │   │   └── utils/                 # 工具类（JWT）
 │   └── src/main/resources/
-│       ├── db/schema.sql          # 建表 + 种子数据
-│       ├── messages.properties    # i18n 资源（中/英文）
+│       ├── db/                    # 建表脚本 + 增量迁移脚本
+│       ├── messages*.properties   # i18n 资源（中/英文）
 │       └── mapper/                # MyBatis XML 映射
 ├── visitor-frontend/              # Vue 3 前端
 │   └── src/
 │       ├── api/                   # Axios 请求模块
 │       ├── router/                # Vue Router 配置
 │       ├── store/                 # Pinia 状态管理
-│       ├── locales/               # 语言包（zh.js / en.js，各 160+ 翻译键）
+│       ├── locales/               # 语言包（zh.js / en.js，各 270 条翻译）
 │       ├── i18n/                  # vue-i18n 实例
-│       └── views/                 # 页面组件（9 个页面，全部已国际化）
+│       └── views/                 # 页面组件（10 个页面，全部已国际化）
 └── README.md
 ```
 
@@ -180,10 +201,17 @@ visitor system/
 ### 预约管理
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| POST | `/api/appointment/submit` | 在线预约 | 否 |
+| POST | `/api/appointment/submit` | 在线预约（触发 AI 自动审批） | 否 |
 | GET | `/api/appointment/query` | 预约查询 | 否 |
 | GET | `/api/appointment/list` | 审批列表 | 是 |
 | PUT | `/api/appointment/{id}/review` | 审批 | appointment:review |
+
+### AI 审批（管理员）
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | `/api/ai/settings` | 查询 AI 审批设置（含 Key 是否配置） | ai:settings |
+| PUT | `/api/ai/settings` | 更新 AI 审批开关 | ai:settings |
+| GET | `/api/ai/logs` | AI 审批日志分页 | ai:logs |
 
 ### 门禁管理
 | 方法 | 路径 | 说明 | 权限 |
@@ -202,9 +230,20 @@ visitor system/
 | GET | `/api/statistics/time-distribution` | 时段分布 | dashboard |
 | GET | `/api/statistics/reason-distribution` | 原因分布 | dashboard |
 
+## AI 自动审批（DeepSeek）
+
+系统接入 DeepSeek 大模型，新预约提交后自动调用 AI 审批，无需人工逐条处理。
+
+- **流程**：`/apply` 提交预约 → 系统同步调用 DeepSeek（JSON 模式）→ 返回通过/拒绝及原因、置信度、风险等级 → 自动更新预约状态并写审批日志
+- **开关**：管理端「AI 审批设置」页一键开关（默认关闭），关闭后预约全部回到人工审批
+- **失败兜底**：AI 调用失败（超时/余额不足/解析失败）时预约保持待审核，不影响提交，错误记录在审批日志中，管理员可排查
+- **隐私保护**：prompt 只包含姓名、脱敏手机号、来访原因、被访人/部门、时间，**不发身份证号**；API Key 仅通过环境变量注入，不落库、不打日志，设置页只显示掩码
+- **审核人标识**：AI 审核的预约 `reviewer_id=100`（内置 `ai_reviewer` 系统账号，不可登录），审批日志可在设置页下方查看
+- **"其他"来访原因**：申请者选"其他"自由填写时，AI 会依据填写的具体原因判断审批
+
 ## 语言切换
 
-系统支持中文和英文两种语言，前端 9 个页面和后端 25 条业务消息均已国际化。
+系统支持中文和英文两种语言，前端 10 个页面和后端 26 条业务消息均已国际化。
 
 - **覆盖范围**：前端全部文本（标签、按钮、表格、提示、图表、表单验证）+ Element Plus 组件内置文本 + 页面标题 + 后端业务消息
 - **访客端**：页面右上角有语言切换下拉菜单（AppointmentForm、AppointmentQuery、Login）
@@ -225,6 +264,14 @@ visitor system/
 **Q: 后端启动报 "Public Key Retrieval is not allowed"？**
 
 MySQL 8.0+ 默认使用 `caching_sha2_password` 认证插件。JDBC 驱动在未启用 SSL 时需要显式允许公钥检索。将 JDBC URL 中的 `allowPublicKeyRetrieval=true` 参数补上即可。详见上方"数据库连接配置"部分的 URL 示例。
+
+**Q: AI 审批不生效 / 提交预约后一直是"待审核"？**
+
+按顺序检查：
+1. 管理端「AI 审批设置」页开关是否已打开（默认关闭）
+2. 是否配置了环境变量 `DEEPSEEK_API_KEY`（设置页会显示"未配置"警告）；修改环境变量后**必须重启后端**（启动时只读取一次）
+3. 已登录 admin 是否**重新登录**过（新增的 `ai:settings` / `ai:logs` 权限码缓存在旧 JWT 中，不重新登录会 403）
+4. 设置页下方审批日志中是否有失败记录（超时/余额不足等）
 
 **Q: 后端报 "Communications link failure" 或 "Failed to obtain JDBC Connection"？**
 

@@ -23,6 +23,19 @@ jwt:
   secret: VmlzaXRvclN5c3RlbVNlY3JldEtleUZvckpXVDIwMjQ=
   expiration: 86400000
 
+ai:
+  review:
+    enabled: false
+  deepseek:
+    base-url: https://api.deepseek.com
+    api-key: ${DEEPSEEK_API_KEY:}
+    model: deepseek-chat
+    temperature: 0.1
+    max-tokens: 1024
+    connect-timeout: 5000
+    read-timeout: 30000
+    max-attempts: 3
+
 logging:
   level:
     com.visitor: debug

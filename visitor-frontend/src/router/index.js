@@ -43,6 +43,12 @@ const routes = [
         meta: { title: 'nav.appointmentReview' }
       },
       {
+        path: 'ai/settings',
+        name: 'AiSettings',
+        component: () => import('../views/AiSettings.vue'),
+        meta: { title: 'nav.aiSettings' }
+      },
+      {
         path: 'visitor/list',
         name: 'VisitorList',
         component: () => import('../views/VisitorList.vue'),

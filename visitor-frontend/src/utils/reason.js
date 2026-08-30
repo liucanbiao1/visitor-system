@@ -22,10 +22,29 @@ const REASON_KEY_MAP = {
   'Cancelled Due to Weather': 'reason.cancelledDueToWeather',
   'Network Equipment Check': 'reason.networkEquipmentCheck',
   'University-Enterprise MOU': 'reason.universityEnterpriseMou',
+  'Other': 'reason.other',
+}
+
+export const REASON_OPTIONS = Object.entries(REASON_KEY_MAP).map(([value, key]) => ({ value, key }))
+
+// AI reject_reason is a fixed enum code from the AI system prompt; map to i18n keys
+export const REJECT_KEY_MAP = {
+  COMMERCIAL_PROMOTION: 'aiReject.commercialPromotion',
+  NON_CAMPUS_PURPOSE: 'aiReject.nonCampusPurpose',
+  SUSPICIOUS: 'aiReject.suspicious',
+  TIME_CONFLICT: 'aiReject.timeConflict',
+  LOW_CONFIDENCE: 'aiReject.lowConfidence',
+  OTHER: 'aiReject.other',
 }
 
 export function translateReason(name) {
   if (!name) return name
   const key = REASON_KEY_MAP[name]
   return key ? i18n.global.t(key) : name
+}
+
+export function translateRejectReason(code) {
+  if (!code) return code
+  const key = REJECT_KEY_MAP[code]
+  return key ? i18n.global.t(key) : code
 }

@@ -26,6 +26,7 @@
             <span>{{ $t('nav.appointmentMgmt') }}</span>
           </template>
           <el-menu-item index="/dashboard/appointment/review">{{ $t('nav.appointmentReview') }}</el-menu-item>
+          <el-menu-item index="/dashboard/ai/settings">{{ $t('nav.aiSettings') }}</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="access">
           <template #title>

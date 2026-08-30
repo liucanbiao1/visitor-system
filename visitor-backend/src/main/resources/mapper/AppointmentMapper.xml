@@ -8,6 +8,7 @@
         <result column="visitor_id" property="visitorId"/>
         <result column="appointment_time" property="appointmentTime"/>
         <result column="visit_reason" property="visitReason"/>
+        <result column="reason_detail" property="reasonDetail"/>
         <result column="host_name" property="hostName"/>
         <result column="host_dept" property="hostDept"/>
         <result column="status" property="status"/>
@@ -21,8 +22,8 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.visitor.entity.Appointment" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO appointment (visitor_id, appointment_time, visit_reason, host_name, host_dept, status, create_time)
-        VALUES (#{visitorId}, #{appointmentTime}, #{visitReason}, #{hostName}, #{hostDept}, #{status}, NOW())
+        INSERT INTO appointment (visitor_id, appointment_time, visit_reason, reason_detail, host_name, host_dept, status, create_time)
+        VALUES (#{visitorId}, #{appointmentTime}, #{visitReason}, #{reasonDetail}, #{hostName}, #{hostDept}, #{status}, NOW())
     </insert>
 
     <select id="findById" resultMap="BaseResultMap">
@@ -65,5 +66,15 @@
             review_time = #{reviewTime},
             update_time = NOW()
         WHERE id = #{id}
+    </update>
+
+    <update id="updateStatusIfPending">
+        UPDATE appointment
+        SET status = #{status},
+            reject_reason = #{rejectReason},
+            reviewer_id = #{reviewerId},
+            review_time = #{reviewTime},
+            update_time = NOW()
+        WHERE id = #{id} AND status = 0
     </update>
 </mapper>

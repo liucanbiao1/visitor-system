@@ -17,4 +17,8 @@ public interface AppointmentMapper {
                      @Param("rejectReason") String rejectReason,
                      @Param("reviewerId") Long reviewerId,
                      @Param("reviewTime") LocalDateTime reviewTime);
+    int updateStatusIfPending(@Param("id") Long id, @Param("status") Integer status,
+                              @Param("rejectReason") String rejectReason,
+                              @Param("reviewerId") Long reviewerId,
+                              @Param("reviewTime") LocalDateTime reviewTime);
 }

@@ -36,7 +36,10 @@
           </template>
         </el-table-column>
         <el-table-column :label="$t('review.visitReason')" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ translateReason(row.visitReason) }}</template>
+          <template #default="{ row }">
+            {{ translateReason(row.visitReason) }}
+            <span v-if="row.reasonDetail" class="reason-detail">{{ row.reasonDetail }}</span>
+          </template>
         </el-table-column>
         <el-table-column prop="hostName" :label="$t('review.hostName')" min-width="100" />
         <el-table-column prop="hostDept" :label="$t('review.hostDept')" min-width="120" show-overflow-tooltip />
@@ -200,4 +203,5 @@ onMounted(() => fetchData())
 .card-header { font-size: 16px; font-weight: 600; }
 .filter-form { margin-bottom: 8px; }
 .reviewed-text { color: #c0c4cc; }
+.reason-detail { margin-left: 4px; color: #909399; font-size: 12px; }
 </style>

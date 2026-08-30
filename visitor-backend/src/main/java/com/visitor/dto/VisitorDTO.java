@@ -14,12 +14,7 @@ public class VisitorDTO implements Serializable {
     @Size(min = 2, max = 50, message = "姓名长度必须在2-50之间")
     private String name;
 
-    /**
-     * 手机号：国际格式，以 + 开头，后接7-15位数字
-     * 示例: +8613912345678, +12125552368
-     */
     @NotBlank(message = "手机号不能为空")
-    @Pattern(regexp = "^\\+\\d{7,15}$", message = "手机号格式不正确，请使用国际格式（如 +8613912345678）")
     private String phone;
 
     /**

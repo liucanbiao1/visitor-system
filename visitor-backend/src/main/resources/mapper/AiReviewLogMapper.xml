@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visitor.mapper.AiReviewLogMapper">
+
+    <insert id="insert" parameterType="com.visitor.entity.AiReviewLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_review_log (appointment_id, visitor_name, visitor_phone, decision, reason,
+                                   confidence, risk_level, latency_ms, model_name, success,
+                                   error_message, raw_response, create_time)
+        VALUES (#{appointmentId}, #{visitorName}, #{visitorPhone}, #{decision}, #{reason},
+                #{confidence}, #{riskLevel}, #{latencyMs}, #{modelName}, #{success},
+                #{errorMessage}, #{rawResponse}, NOW())
+    </insert>
+
+    <select id="findPage" resultType="com.visitor.entity.AiReviewLog">
+        SELECT id, appointment_id AS appointmentId, visitor_name AS visitorName, visitor_phone AS visitorPhone,
+               decision, reason, confidence, risk_level AS riskLevel, latency_ms AS latencyMs,
+               model_name AS modelName, success, error_message AS errorMessage, create_time AS createTime
+        FROM ai_review_log
+        ORDER BY create_time DESC
+    </select>
+</mapper>
